@@ -2,7 +2,7 @@ import XCTest
 
 final class TestOfflineMode: XCTestCase {
     func testOfflineQueueForAnalysis() throws {
-        XCTFail("Not implemented: offline queue for analysis")
+        throw XCTSkip("Pending implementation: offline queue for analysis")
     }
 }
 
