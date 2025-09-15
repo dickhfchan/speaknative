@@ -1,0 +1,176 @@
+openapi: 3.0.0
+info:
+  title: Speech Analysis API
+  description: Azure OpenAI integration for pronunciation analysis
+  version: 1.0.0
+  contact:
+    name: SpeakNative Team
+    email: support@speaknative.com
+
+servers:
+  - url: https://api.azure.com/openai
+    description: Azure OpenAI endpoint
+
+paths:
+  /deployments/{deployment}/audio/transcriptions:
+    post:
+      summary: Analyze pronunciation
+      description: Analyze user's speech recording against native speaker audio
+      operationId: analyzePronunciation
+      parameters:
+        - name: deployment
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Azure OpenAI deployment name
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: User's audio recording
+                model:
+                  type: string
+                  default: whisper-1
+                  description: Whisper model version
+                language:
+                  type: string
+                  default: en
+                  description: Language code
+                prompt:
+                  type: string
+                  description: Expected text content
+                response_format:
+                  type: string
+                  default: json
+                  description: Response format
+                temperature:
+                  type: number
+                  default: 0.0
+                  description: Temperature for analysis
+      responses:
+        '200':
+          description: Successful analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    AnalysisResponse:
+      type: object
+      required:
+        - text
+        - pronunciation_score
+        - issues
+        - confidence
+      properties:
+        text:
+          type: string
+          description: Transcribed text
+        pronunciation_score:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          description: Overall pronunciation score
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/PronunciationIssue'
+          description: Identified pronunciation issues
+        confidence:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          description: Analysis confidence level
+        processing_time:
+          type: number
+          description: Processing time in seconds
+
+    PronunciationIssue:
+      type: object
+      required:
+        - type
+        - word
+        - position
+        - severity
+        - description
+        - suggestion
+      properties:
+        type:
+          type: string
+          enum: [vowel, consonant, stress, rhythm, intonation]
+          description: Type of pronunciation issue
+        word:
+          type: string
+          description: Problematic word
+        position:
+          type: integer
+          minimum: 0
+          description: Character position in text
+        severity:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          description: Severity level
+        description:
+          type: string
+          description: Human-readable description
+        suggestion:
+          type: string
+          description: Improvement suggestion
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - message
+            - type
+          properties:
+            message:
+              type: string
+              description: Error message
+            type:
+              type: string
+              description: Error type
+            code:
+              type: string
+              description: Error code
+            param:
+              type: string
+              description: Parameter that caused the error
