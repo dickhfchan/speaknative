@@ -1,0 +1,2 @@
+I am building an ios app to help English learner to pick up the american accent. The method is to ask the user to speak a narrative, record the voice of the user and compare the voice against a native speaker's voice. The app use llm to analyse the differences or issues with the user's voice. Generate a list of speaking execrises for the user to learn how to pronoun from single words, phases and the whole narrative. 
+
