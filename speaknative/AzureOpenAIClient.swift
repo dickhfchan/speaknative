@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 
 struct AzureOpenAIClient {
     struct Configuration {
@@ -60,32 +61,10 @@ struct AzureOpenAIClient {
     }
     
     func generateNativeSpeakerAudio(for narrative: String) async throws -> URL {
-        let messages: [[String: Any]] = [
-            [
-                "role": "system",
-                "content": "You are a native American English speaker. Provide the exact same narrative text that was given to you, but ensure it's perfectly formatted for text-to-speech with natural pronunciation and pacing."
-            ],
-            [
-                "role": "user",
-                "content": "Please provide the exact same narrative text for text-to-speech: \"\(narrative)\""
-            ]
-        ]
-        
-        let response = try await sendChat(messages: messages, temperature: 0.1, maxTokens: 200)
-        
-        // For now, we'll return a placeholder URL. In a real implementation, you would:
-        // 1. Send the response to Azure Speech Services for TTS
-        // 2. Save the generated audio file
-        // 3. Return the file URL
-        
-        // Placeholder: Create a temporary file with the text for now
-        let tempDir = FileManager.default.temporaryDirectory
-        let fileName = "native-speaker-\(UUID().uuidString).txt"
-        let fileURL = tempDir.appendingPathComponent(fileName)
-        
-        try response.write(to: fileURL, atomically: true, encoding: .utf8)
-        
-        return fileURL
+        // Use the original narrative directly for TTS generation
+        // This ensures we get the exact same text with native pronunciation
+        let ttsManager = await TTSManager()
+        return try await ttsManager.generateAudio(for: narrative)
     }
 
     private func requestMessages(for summary: SpeechPracticeRecorder.RecordingSummary) -> [[String: Any]] {
@@ -232,3 +211,4 @@ struct AzureOpenAIClient {
         return result
     }
 }
+
