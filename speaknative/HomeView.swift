@@ -116,6 +116,7 @@ private struct HoldToSpeakButton: View {
 struct HomeView: View {
     @StateObject private var recorder = SpeechPracticeRecorder()
     @StateObject private var analysisManager = SpeechAnalysisManager()
+    @State private var showAnalysisPopup = false
 
     var body: some View {
         ZStack {
@@ -150,8 +151,6 @@ struct HomeView: View {
                     },
                     onStop: recorder.stopRecording
                 )
-
-                analysisSection
             }
             .padding(24)
         }
@@ -169,39 +168,16 @@ struct HomeView: View {
                 await analysisManager.analyze(summary: summary)
             }
         }
-    }
-
-    private var analysisSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if analysisManager.isAnalyzing {
-                HStack(spacing: 12) {
-                    ProgressView()
-                    Text("Analyzing your narration...")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if let analysis = analysisManager.analysisText {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("AI Feedback")
-                        .font(.headline)
-                    Text(analysis)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            }
-
-            if let error = analysisManager.errorMessage {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+        .onChange(of: analysisManager.analysisText) { _, analysisText in
+            if analysisText != nil {
+                showAnalysisPopup = true
             }
         }
+        .sheet(isPresented: $showAnalysisPopup) {
+            AnalysisPopupView(analysisManager: analysisManager)
+        }
     }
+
 
     private var permissionAlertBinding: Binding<Bool> {
         Binding(
@@ -220,6 +196,75 @@ struct HomeView: View {
             return ""
         case .failed(let error):
             return "Recording failed: \(error.localizedDescription)"
+        }
+    }
+}
+
+struct AnalysisPopupView: View {
+    @ObservedObject var analysisManager: SpeechAnalysisManager
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                if analysisManager.isAnalyzing {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text("Analyzing your narration...")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        Text("This may take a few moments")
+                            .font(.subheadline)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let analysis = analysisManager.analysisText {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack {
+                                Image(systemName: "brain.head.profile")
+                                    .foregroundStyle(.blue)
+                                    .font(.title2)
+                                Text("AI Feedback")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                Spacer()
+                            }
+                            
+                            Text(analysis)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding()
+                    }
+                } else if let error = analysisManager.errorMessage {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.red)
+                            .font(.largeTitle)
+                        Text("Analysis Error")
+                            .font(.headline)
+                        Text(error)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .padding()
+            .navigationTitle("Voice Analysis")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
