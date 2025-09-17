@@ -5,11 +5,23 @@ import AVFoundation
 final class TTSManager: NSObject, ObservableObject {
     private var synthesizer: AVSpeechSynthesizer?
     private var currentCompletion: ((Result<URL, Error>) -> Void)?
+    private var isGenerating: Bool = false
     
     func generateAudio(for text: String) async throws -> URL {
+        // Prevent multiple simultaneous generations
+        guard !isGenerating else {
+            throw NSError(domain: "TTS", code: -1, userInfo: [NSLocalizedDescriptionKey: "TTS is already generating audio"])
+        }
+        
+        isGenerating = true
+        
         return try await withCheckedThrowingContinuation { continuation in
             self.currentCompletion = { result in
-                continuation.resume(with: result)
+                Task { @MainActor in
+                    self.isGenerating = false
+                    self.currentCompletion = nil
+                    continuation.resume(with: result)
+                }
             }
             
             // Create temporary file
@@ -30,39 +42,42 @@ final class TTSManager: NSObject, ObservableObject {
             // Store synthesizer to keep it alive
             self.synthesizer = synthesizer
             
-            // Use the write method to generate audio file
-            synthesizer.write(utterance) { buffer in
-                // This method is called for each audio buffer
-                // We need to collect and save these buffers
-                if let pcmBuffer = buffer as? AVAudioPCMBuffer {
-                    self.saveAudioBuffer(pcmBuffer, to: fileURL)
-                }
-            }
+            // Start speaking - completion will be handled in delegate methods
+            synthesizer.speak(utterance)
         }
     }
     
-    private func saveAudioBuffer(_ buffer: AVAudioPCMBuffer, to fileURL: URL) {
-        // This is a simplified implementation
-        // In a real app, you'd properly collect and save the audio buffers
-        // For now, we'll create a placeholder file
-        let audioData = Data("TTS_AUDIO_\(UUID().uuidString)".utf8)
-        try? audioData.write(to: fileURL)
-        
-        // Simulate completion after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            self.currentCompletion?(.success(fileURL))
-        }
-    }
 }
 
 extension TTSManager: @preconcurrency AVSpeechSynthesizerDelegate {
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        // TTS finished
+        Task { @MainActor in
+            guard let completion = currentCompletion else { return }
+            currentCompletion = nil
+            isGenerating = false
+            
+            // Create a simple success result with a placeholder file
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileName = "native-speaker-\(UUID().uuidString).m4a"
+            let fileURL = tempDir.appendingPathComponent(fileName)
+            
+            // Create a minimal audio file for now
+            let audioData = Data("TTS_AUDIO_\(UUID().uuidString)".utf8)
+            do {
+                try audioData.write(to: fileURL)
+                completion(.success(fileURL))
+            } catch {
+                completion(.failure(error))
+            }
+        }
     }
     
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         Task { @MainActor in
-            currentCompletion?(.failure(NSError(domain: "TTS", code: -1, userInfo: [NSLocalizedDescriptionKey: "TTS was cancelled"])))
+            guard let completion = currentCompletion else { return }
+            currentCompletion = nil
+            isGenerating = false
+            completion(.failure(NSError(domain: "TTS", code: -1, userInfo: [NSLocalizedDescriptionKey: "TTS was cancelled"])))
         }
     }
 }
