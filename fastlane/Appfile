@@ -1,0 +1,7 @@
+# App Store Connect configuration
+app_identifier "everyautos.speaknative"
+apple_id "" # your Apple ID email (optional when using API key)
+itc_team_id "" # App Store Connect Team ID (optional when using API key)
+team_id "" # Developer Portal Team ID (optional when using API key)
+
+

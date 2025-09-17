@@ -1,0 +1,54 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build an iOS archive (Release)"
+  lane :build_ios do
+    api_key = app_store_connect_api_key(path: "fastlane/api_key.json") if File.exist?("fastlane/api_key.json")
+
+    gym(
+      scheme: "speaknative",
+      configuration: "Release",
+      export_method: "app-store",
+      clean: true,
+      output_directory: "build",
+      output_name: "speaknative.ipa"
+    )
+  end
+
+  desc "Upload build to TestFlight"
+  lane :beta do
+    api_key = app_store_connect_api_key(path: "fastlane/api_key.json")
+    build_ios
+    pilot(
+      api_key: api_key,
+      skip_submission: true,
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Upload only metadata (no binary) to App Store Connect"
+  lane :submit_metadata do
+    api_key = app_store_connect_api_key(path: "fastlane/api_key.json")
+    deliver(
+      api_key: api_key,
+      submit_for_review: false,
+      skip_screenshots: true,
+      skip_binary_upload: true,
+      force: true
+    )
+  end
+
+  desc "Upload metadata and binary to App Store Connect (not auto-submit)"
+  lane :appstore do
+    api_key = app_store_connect_api_key(path: "fastlane/api_key.json")
+    build_ios
+    deliver(
+      api_key: api_key,
+      submit_for_review: false,
+      skip_screenshots: true,
+      force: true
+    )
+  end
+end
+
+

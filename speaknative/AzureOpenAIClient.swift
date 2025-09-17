@@ -185,7 +185,6 @@ struct AzureOpenAIClient {
 
         """
 
-
         // Instructions:
         // - Decode both audios.
         // - Align words.
@@ -290,7 +289,7 @@ struct AzureOpenAIClient {
         return [
             [
                 "role": "system",
-                "content": "You are an encouraging American accent coach who recommends actionable pronunciation exercises."
+                "content": "You are an encouraging American accent coach who recommends actionable pronunciation exercises. When you are asked to compare the user's voice to a native speaker's voice, you should use the audio comparison method and explain the issues in the audio comparison report."
             ],
             [
                 "role": "user",
