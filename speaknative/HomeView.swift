@@ -202,7 +202,10 @@ struct HomeView: View {
 
 struct AnalysisPopupView: View {
     @ObservedObject var analysisManager: SpeechAnalysisManager
+    @StateObject private var audioPlayer = AudioPlayerManager()
     @Environment(\.dismiss) private var dismiss
+    
+    private let narrative = "The quick brown fox jumps over the lazy dog while the city hums in the distance."
     
     var body: some View {
         NavigationStack {
@@ -221,22 +224,76 @@ struct AnalysisPopupView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let analysis = analysisManager.analysisText {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack {
-                                Image(systemName: "brain.head.profile")
-                                    .foregroundStyle(.blue)
-                                    .font(.title2)
-                                Text("AI Feedback")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                Spacer()
+                        VStack(alignment: .leading, spacing: 20) {
+                            // Playback Controls Section
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Audio Playback")
+                                    .font(.headline)
+                                    .foregroundStyle(.secondary)
+                                
+                                VStack(spacing: 12) {
+                                    // Original Recording Playback
+                                    PlaybackButton(
+                                        title: "Play Your Recording",
+                                        icon: "mic.fill",
+                                        color: .blue,
+                                        isPlaying: audioPlayer.isPlaying && audioPlayer.currentTime > 0,
+                                        isLoading: false,
+                                        action: {
+                                            if let recordingURL = analysisManager.lastRecordingURL {
+                                                audioPlayer.play(url: recordingURL)
+                                            }
+                                        }
+                                    )
+                                    
+                                    // Native Speaker Playback
+                                    PlaybackButton(
+                                        title: "Play Native Speaker",
+                                        icon: "person.wave.2.fill",
+                                        color: .green,
+                                        isPlaying: false, // Will be updated when native audio is ready
+                                        isLoading: analysisManager.isGeneratingNativeAudio,
+                                        action: {
+                                            if let nativeURL = analysisManager.nativeSpeakerAudioURL {
+                                                audioPlayer.play(url: nativeURL)
+                                            } else {
+                                                Task {
+                                                    await analysisManager.generateNativeSpeakerAudio(for: narrative)
+                                                }
+                                            }
+                                        }
+                                    )
+                                    
+                                    if let error = analysisManager.nativeAudioError {
+                                        Text(error)
+                                            .font(.caption)
+                                            .foregroundStyle(.red)
+                                    }
+                                }
                             }
+                            .padding()
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                             
-                            Text(analysis)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                                .multilineTextAlignment(.leading)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            // AI Feedback Section
+                            VStack(alignment: .leading, spacing: 16) {
+                                HStack {
+                                    Image(systemName: "brain.head.profile")
+                                        .foregroundStyle(.blue)
+                                        .font(.title2)
+                                    Text("AI Feedback")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Spacer()
+                                }
+                                
+                                Text(analysis)
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding()
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                         }
                         .padding()
                     }
@@ -266,6 +323,44 @@ struct AnalysisPopupView: View {
                 }
             }
         }
+    }
+}
+
+struct PlaybackButton: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let isPlaying: Bool
+    let isLoading: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                } else {
+                    Image(systemName: isPlaying ? "stop.fill" : icon)
+                        .foregroundStyle(.white)
+                        .font(.title3)
+                }
+                
+                Text(isLoading ? "Generating..." : (isPlaying ? "Stop" : title))
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.white)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(color)
+            )
+        }
+        .disabled(isLoading)
     }
 }
 
