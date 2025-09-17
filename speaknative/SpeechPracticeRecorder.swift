@@ -25,15 +25,28 @@ final class SpeechPracticeRecorder: NSObject, ObservableObject {
     private var recordingStartDate: Date?
 
     override init() {
-        switch audioSession.recordPermission {
-        case .undetermined:
-            permission = .undetermined
-        case .denied:
-            permission = .denied
-        case .granted:
-            permission = .granted
-        @unknown default:
-            permission = .undetermined
+        if #available(iOS 17.0, *) {
+            switch AVAudioApplication.shared.recordPermission {
+            case .undetermined:
+                permission = .undetermined
+            case .denied:
+                permission = .denied
+            case .granted:
+                permission = .granted
+            @unknown default:
+                permission = .undetermined
+            }
+        } else {
+            switch audioSession.recordPermission {
+            case .undetermined:
+                permission = .undetermined
+            case .denied:
+                permission = .denied
+            case .granted:
+                permission = .granted
+            @unknown default:
+                permission = .undetermined
+            }
         }
         super.init()
     }
@@ -41,11 +54,22 @@ final class SpeechPracticeRecorder: NSObject, ObservableObject {
     func requestPermission() {
         guard case .undetermined = permission else { return }
 
-        audioSession.requestRecordPermission { [weak self] granted in
-            DispatchQueue.main.async {
-                self?.permission = granted ? .granted : .denied
-                if !granted {
-                    self?.presentPermissionAlert = true
+        if #available(iOS 17.0, *) {
+            AVAudioApplication.requestRecordPermission { [weak self] granted in
+                DispatchQueue.main.async {
+                    self?.permission = granted ? .granted : .denied
+                    if !granted {
+                        self?.presentPermissionAlert = true
+                    }
+                }
+            }
+        } else {
+            audioSession.requestRecordPermission { [weak self] granted in
+                DispatchQueue.main.async {
+                    self?.permission = granted ? .granted : .denied
+                    if !granted {
+                        self?.presentPermissionAlert = true
+                    }
                 }
             }
         }

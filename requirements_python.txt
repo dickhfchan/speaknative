@@ -1,0 +1,2 @@
+# Python dependencies for PostgreSQL connection testing
+psycopg2-binary>=2.9.0

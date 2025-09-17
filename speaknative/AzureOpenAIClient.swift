@@ -40,12 +40,64 @@ struct AzureOpenAIClient {
     }
 
     func analyze(summary: SpeechPracticeRecorder.RecordingSummary) async throws -> String {
+        let messages = requestMessages(for: summary)
+        return try await sendChat(messages: messages, temperature: 0.4, maxTokens: 320)
+    }
+
+    func sendTestPrompt(_ prompt: String) async throws -> String {
+        let messages: [[String: Any]] = [
+            [
+                "role": "system",
+                "content": "You are a helpful assistant."
+            ],
+            [
+                "role": "user",
+                "content": prompt
+            ]
+        ]
+
+        return try await sendChat(messages: messages, temperature: 0.2, maxTokens: 120)
+    }
+
+    private func requestMessages(for summary: SpeechPracticeRecorder.RecordingSummary) -> [[String: Any]] {
+        let average = String(format: "%.2f", summary.averageLevel)
+        let peak = String(format: "%.2f", summary.peakLevel)
+        let duration = String(format: "%.1f", summary.duration)
+
+        let userPrompt = """
+        I recorded a narration with the following microphone metrics:
+        - Duration: \(duration) seconds
+        - Average intensity (0-1 scale): \(average)
+        - Peak intensity (0-1 scale): \(peak)
+        - Sample count: \(summary.sampleCount)
+
+        Provide constructive feedback comparing the performance to a native American English speaker. Highlight the most likely pronunciation issues based on these metrics and suggest targeted exercises: one at the word level, one at the phrase level, and one for a longer narrative practice. Keep the guidance empathetic and concise.
+        """
+
+        return [
+            [
+                "role": "system",
+                "content": "You are an encouraging American accent coach who recommends actionable pronunciation exercises."
+            ],
+            [
+                "role": "user",
+                "content": userPrompt
+            ]
+        ]
+    }
+
+    private func sendChat(messages: [[String: Any]], temperature: Double, maxTokens: Int) async throws -> String {
         var components = URLComponents(url: configuration.endpoint.appendingPathComponent("openai/deployments/\(configuration.deployment)/chat/completions"), resolvingAgainstBaseURL: false)
         components?.queryItems = [URLQueryItem(name: "api-version", value: configuration.apiVersion)]
 
         guard let url = components?.url else { throw ClientError.invalidURL }
 
-        let payload = requestBody(for: summary)
+        let payload: [String: Any] = [
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": maxTokens
+        ]
+
         let body = try JSONSerialization.data(withJSONObject: payload, options: [])
 
         var request = URLRequest(url: url)
@@ -66,37 +118,6 @@ struct AzureOpenAIClient {
         }
 
         return try extractContent(from: data)
-    }
-
-    private func requestBody(for summary: SpeechPracticeRecorder.RecordingSummary) -> [String: Any] {
-        let average = String(format: "%.2f", summary.averageLevel)
-        let peak = String(format: "%.2f", summary.peakLevel)
-        let duration = String(format: "%.1f", summary.duration)
-
-        let userPrompt = """
-        I recorded a narration with the following microphone metrics:
-        - Duration: \(duration) seconds
-        - Average intensity (0-1 scale): \(average)
-        - Peak intensity (0-1 scale): \(peak)
-        - Sample count: \(summary.sampleCount)
-
-        Provide constructive feedback comparing the performance to a native American English speaker. Highlight the most likely pronunciation issues based on these metrics and suggest targeted exercises: one at the word level, one at the phrase level, and one for a longer narrative practice. Keep the guidance empathetic and concise.
-        """
-
-        return [
-            "messages": [
-                [
-                    "role": "system",
-                    "content": "You are an encouraging American accent coach who recommends actionable pronunciation exercises."
-                ],
-                [
-                    "role": "user",
-                    "content": userPrompt
-                ]
-            ],
-            "temperature": 0.4,
-            "max_tokens": 320
-        ]
     }
 
     private func extractContent(from data: Data) throws -> String {
