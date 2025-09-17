@@ -8,6 +8,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     @Published var currentTime: TimeInterval = 0
     @Published var duration: TimeInterval = 0
     @Published var playbackError: String?
+    @Published var currentURL: URL?
     
     private var audioPlayer: AVAudioPlayer?
     private var playbackTimer: Timer?
@@ -25,6 +26,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
             duration = audioPlayer?.duration ?? 0
             currentTime = 0
             playbackError = nil
+            currentURL = url
             
             // Start playback
             if audioPlayer?.play() == true {
@@ -45,6 +47,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         currentTime = 0
         duration = 0
         stopPlaybackTimer()
+        currentURL = nil
     }
     
     func pause() {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 private struct NarrativeCard: View {
     var body: some View {
@@ -156,6 +157,8 @@ struct HomeView: View {
         }
         .task {
             recorder.requestPermission()
+            // Pre-warm the recorder to reduce first-tap latency
+            recorder.preWarm()
         }
         .alert("Microphone Access Needed", isPresented: permissionAlertBinding) {
             Button("OK", role: .cancel) { }
@@ -222,9 +225,14 @@ struct AnalysisPopupView: View {
                             .foregroundStyle(.tertiary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let analysis = analysisManager.analysisText {
+                } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
+                            // Steps Progress Section
+                            stepsSection
+                                .padding()
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+
                             // Playback Controls Section
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("Audio Playback")
@@ -232,29 +240,34 @@ struct AnalysisPopupView: View {
                                     .foregroundStyle(.secondary)
                                 
                                 VStack(spacing: 12) {
-                                    // Original Recording Playback
+                                    // Original Recording Playback (toggle stop only when this URL is playing)
                                     PlaybackButton(
                                         title: "Play Your Recording",
                                         icon: "mic.fill",
                                         color: .blue,
-                                        isPlaying: audioPlayer.isPlaying && audioPlayer.currentTime > 0,
+                                        isPlaying: (audioPlayer.isPlaying && audioPlayer.currentURL == analysisManager.lastRecordingURL),
                                         isLoading: false,
                                         action: {
-                                            if let recordingURL = analysisManager.lastRecordingURL {
+                                            guard let recordingURL = analysisManager.lastRecordingURL else { return }
+                                            if audioPlayer.isPlaying && audioPlayer.currentURL == recordingURL {
+                                                audioPlayer.stop()
+                                            } else {
                                                 audioPlayer.play(url: recordingURL)
                                             }
                                         }
                                     )
                                     
-                                    // Native Speaker Playback
+                                    // Native Speaker Playback (auto play after generation, toggles to Stop)
                                     PlaybackButton(
                                         title: "Play Native Speaker",
                                         icon: "person.wave.2.fill",
                                         color: .green,
-                                        isPlaying: false, // Will be updated when native audio is ready
+                                        isPlaying: (audioPlayer.isPlaying && audioPlayer.currentURL == analysisManager.nativeSpeakerAudioURL),
                                         isLoading: analysisManager.isGeneratingNativeAudio,
                                         action: {
-                                            if let nativeURL = analysisManager.nativeSpeakerAudioURL {
+                                            if audioPlayer.isPlaying && audioPlayer.currentURL == analysisManager.nativeSpeakerAudioURL {
+                                                audioPlayer.stop()
+                                            } else if let nativeURL = analysisManager.nativeSpeakerAudioURL {
                                                 audioPlayer.play(url: nativeURL)
                                             } else {
                                                 Task {
@@ -262,6 +275,36 @@ struct AnalysisPopupView: View {
                                                 }
                                             }
                                         }
+                                    )
+
+                                    // Analyze button: triggers auto-transcribe, compare, and display per-word issues
+                                    Button(action: {
+                                        Task { await analysisManager.runFullAnalysisFlow(narrative: narrative) }
+                                    }) {
+                                        HStack(spacing: 12) {
+                                            if analysisManager.isComparing {
+                                                ProgressView().scaleEffect(0.8)
+                                            } else {
+                                                Image(systemName: "text.magnifyingglass")
+                                                    .foregroundStyle(.white)
+                                                    .font(.title3)
+                                            }
+                                            Text(analysisManager.isComparing ? "Analyzing..." : "Analyze Pronunciation")
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(.white)
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 12)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 8).fill(Color.purple)
+                                        )
+                                    }
+                                    .disabled(
+                                        analysisManager.isComparing ||
+                                        analysisManager.isGeneratingNativeAudio ||
+                                        analysisManager.lastRecordingURL == nil
                                     )
                                     
                                     if let error = analysisManager.nativeAudioError {
@@ -274,45 +317,86 @@ struct AnalysisPopupView: View {
                             .padding()
                             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                             
-                            // AI Feedback Section
-                            VStack(alignment: .leading, spacing: 16) {
-                                HStack {
-                                    Image(systemName: "brain.head.profile")
-                                        .foregroundStyle(.blue)
-                                        .font(.title2)
-                                    Text("AI Feedback")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    Spacer()
+                            // AI Feedback Section (only when available)
+                            // Show results only after word-level comparison completes
+                            if let feedback = analysisManager.wordLevelReport {
+                                VStack(alignment: .leading, spacing: 16) {
+                                    HStack {
+                                        Image(systemName: "brain.head.profile")
+                                            .foregroundStyle(.blue)
+                                            .font(.title2)
+                                        Text("Word-Level Issues")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                        Spacer()
+                                    }
+
+                                    Text(feedback)
+                                        .font(.body)
+                                        .foregroundStyle(.primary)
+                                        .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .textSelection(.enabled)
+
+                                    Button {
+                                        UIPasteboard.general.string = feedback
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "doc.on.doc")
+                                            Text("Copy Result")
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
                                 }
-                                
-                                Text(analysis)
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding()
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                             }
-                            .padding()
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                         }
                         .padding()
                     }
-                } else if let error = analysisManager.errorMessage {
+                }
+                if let error = analysisManager.errorMessage {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")
                             .foregroundStyle(.red)
                             .font(.largeTitle)
                         Text("Analysis Error")
                             .font(.headline)
-                        Text(error)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Details")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            ScrollView {
+                                Text(error)
+                                    .font(.footnote)
+                                    .foregroundStyle(.primary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .frame(maxHeight: 200)
+                            Button {
+                                UIPasteboard.general.string = error
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "doc.on.doc")
+                                    Text("Copy Error")
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding()
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .padding()
+            // Auto-play native audio once generated
+            .onChange(of: analysisManager.nativeSpeakerAudioURL) { _, newURL in
+                if let url = newURL {
+                    audioPlayer.play(url: url)
+                }
+            }
             .navigationTitle("Voice Analysis")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -323,6 +407,69 @@ struct AnalysisPopupView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Steps Section
+private enum StepState {
+    case pending
+    case inProgress
+    case done
+}
+
+extension AnalysisPopupView {
+    private var stepsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Analysis Steps")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            stepRow(title: "Record", state: stepStateRecord)
+            stepRow(title: "Stop", state: stepStateStop)
+            stepRow(title: "Generate native voice", state: stepStateGenerate)
+            stepRow(title: "Compare", state: stepStateCompare)
+            stepRow(title: "Display per-word issues", state: stepStateDisplay)
+        }
+    }
+
+    private func stepRow(title: String, state: StepState) -> some View {
+        HStack(spacing: 10) {
+            switch state {
+            case .done:
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            case .inProgress:
+                ProgressView().scaleEffect(0.8)
+            case .pending:
+                Image(systemName: "circle").foregroundStyle(.secondary)
+            }
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+        }
+    }
+
+    private var stepStateRecord: StepState {
+        analysisManager.lastRecordingURL != nil ? .done : .inProgress
+    }
+
+    private var stepStateStop: StepState {
+        analysisManager.lastRecordingURL != nil ? .done : .pending
+    }
+
+    private var stepStateGenerate: StepState {
+        if analysisManager.nativeSpeakerAudioURL != nil { return .done }
+        return analysisManager.isGeneratingNativeAudio ? .inProgress : .pending
+    }
+
+    // Removed obsolete transcribe step
+
+    private var stepStateCompare: StepState {
+        if analysisManager.wordLevelReport != nil { return .done }
+        return analysisManager.isComparing ? .inProgress : .pending
+    }
+
+    private var stepStateDisplay: StepState {
+        analysisManager.wordLevelReport != nil ? .done : .pending
     }
 }
 

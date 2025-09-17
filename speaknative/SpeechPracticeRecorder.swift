@@ -19,6 +19,7 @@ final class SpeechPracticeRecorder: NSObject, ObservableObject {
 
     private let audioSession = AVAudioSession.sharedInstance()
     private var audioRecorder: AVAudioRecorder?
+    private var preparedURL: URL?
     private var meterTimer: DispatchSourceTimer?
     private let meterQueue = DispatchQueue(label: "SpeechPracticeRecorder.meter")
     private var levelAccumulator = LevelAccumulator()
@@ -92,15 +93,18 @@ final class SpeechPracticeRecorder: NSObject, ObservableObject {
         guard !isRecording else { return }
 
         do {
-            try configureSession()
-            let url = makeRecordingURL()
-            let recorder = try AVAudioRecorder(url: url, settings: recordingSettings())
-            recorder.isMeteringEnabled = true
+            // Use pre-warmed recorder if available for fastest start
+            if audioRecorder == nil {
+                try preWarmInternal()
+            }
+
+            guard let recorder = audioRecorder else { return }
             recorder.delegate = self
+            recorder.isMeteringEnabled = true
             recorder.record()
 
-            audioRecorder = recorder
-            lastRecordingURL = url
+            // Set URL on real start
+            lastRecordingURL = preparedURL
             lastRecordingSummary = nil
             recordingStartDate = Date()
             meterQueue.sync {
@@ -152,18 +156,36 @@ final class SpeechPracticeRecorder: NSObject, ObservableObject {
         try audioSession.setActive(true, options: [])
     }
 
+    // Prepare audio session and recorder ahead of time to reduce latency on first tap
+    func preWarm() {
+        do { try preWarmInternal() } catch { /* ignore prewarm errors; will fall back on start */ }
+    }
+
+    private func preWarmInternal() throws {
+        if isRecording { return }
+        try configureSession()
+        let url = makeRecordingURL()
+        let recorder = try AVAudioRecorder(url: url, settings: recordingSettings())
+        recorder.isMeteringEnabled = true
+        recorder.prepareToRecord()
+        audioRecorder = recorder
+        preparedURL = url
+    }
+
     private func makeRecordingURL() -> URL {
-        let filename = "practice-" + ISO8601DateFormatter().string(from: Date()) + ".m4a"
+        let filename = "practice-" + ISO8601DateFormatter().string(from: Date()) + ".wav"
         let folder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first ?? FileManager.default.temporaryDirectory
         return folder.appendingPathComponent(filename)
     }
 
     private func recordingSettings() -> [String: Any] {
         [
-            AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVSampleRateKey: 44_100,
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: 16_000,
             AVNumberOfChannelsKey: 1,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false
         ]
     }
 
