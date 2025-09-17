@@ -152,6 +152,8 @@ struct HomeView: View {
                     },
                     onStop: recorder.stopRecording
                 )
+                // Leave comfortable space above the bottom tab bar
+                Spacer(minLength: 80)
             }
             .padding(24)
         }
