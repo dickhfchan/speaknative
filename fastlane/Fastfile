@@ -1,9 +1,47 @@
 default_platform(:ios)
 
 platform :ios do
-  desc "Build an iOS archive (Release)"
+  desc "Create app identifier and App Store Connect app"
+  lane :create_app do
+    # Create app identifier and App Store Connect app
+    produce(
+      app_identifier: "everyautos.speaknative",
+      app_name: "SpeakNative",
+      app_version: "1.0.0",
+      skip_itc: false  # Create on App Store Connect
+    )
+  end
+
+  desc "Setup code signing automatically"
+  lane :setup_signing do
+    api_key = app_store_connect_api_key(
+      key_id: "RLGD2FDJTY",
+      issuer_id: "69a6de95-fc85-47e3-e053-5b8c7c11a4d1",
+      key_content: "-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgcxI0C1t0/8XWs+NM\nevn/fBHR7CiZ6bGuPQFU0k2Os2SgCgYIKoZIzj0DAQehRANCAATo1JMBFRZZY80O\nU3VkIUsoOHrvJEmMC78W1p9z5UANblpatZ39zQSmfTIo7xZUANS7Bg8enSE51a3P\n2alImKEb\n-----END PRIVATE KEY-----\n"
+    )
+    
+    # Create App Store distribution certificate
+    cert(
+      api_key: api_key,
+      development: false,
+      output_path: "./certs"
+    )
+    
+    # Create App Store provisioning profile
+    sigh(
+      api_key: api_key,
+      app_identifier: "everyautos.speaknative",
+      provisioning_name: "speaknative_appstore",
+      force: true
+    )
+  end
+  desc "Build and upload iOS app"
   lane :build_ios do
-    api_key = app_store_connect_api_key(path: "fastlane/api_key.json") if File.exist?("fastlane/api_key.json")
+    api_key = app_store_connect_api_key(
+      key_id: "RLGD2FDJTY",
+      issuer_id: "69a6de95-fc85-47e3-e053-5b8c7c11a4d1",
+      key_content: "-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgcxI0C1t0/8XWs+NM\nevn/fBHR7CiZ6bGuPQFU0k2Os2SgCgYIKoZIzj0DAQehRANCAATo1JMBFRZZY80O\nU3VkIUsoOHrvJEmMC78W1p9z5UANblpatZ39zQSmfTIo7xZUANS7Bg8enSE51a3P\n2alImKEb\n-----END PRIVATE KEY-----\n"
+    )
 
     gym(
       scheme: "speaknative",
@@ -11,13 +49,35 @@ platform :ios do
       export_method: "app-store",
       clean: true,
       output_directory: "build",
-      output_name: "speaknative.ipa"
+      output_name: "speaknative.ipa",
+      export_options: {
+        method: "app-store",
+        uploadBitcode: false,
+        uploadSymbols: true,
+        compileBitcode: false,
+        signingStyle: "automatic"
+      }
+    )
+    
+    pilot(
+      api_key: api_key,
+      skip_waiting_for_build_processing: false,
+      distribute_external: false,
+      notify_external_testers: false
     )
   end
 
   desc "Upload build to TestFlight"
   lane :beta do
-    api_key = app_store_connect_api_key(path: "fastlane/api_key.json")
+    api_key = app_store_connect_api_key(
+      key_id: "RLGD2FDJTY",
+      issuer_id: "69a6de95-fc85-47e3-e053-5b8c7c11a4d1",
+      key_content: "-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgcxI0C1t0/8XWs+NM\nevn/fBHR7CiZ6bGuPQFU0k2Os2SgCgYIKoZIzj0DAQehRANCAATo1JMBFRZZY80O\nU3VkIUsoOHrvJEmMC78W1p9z5UANblpatZ39zQSmfTIo7xZUANS7Bg8enSE51a3P\n2alImKEb\n-----END PRIVATE KEY-----\n"
+    )
+    
+    # Setup code signing (App ID already created manually)
+    setup_signing
+    
     build_ios
     pilot(
       api_key: api_key,
@@ -28,7 +88,7 @@ platform :ios do
 
   desc "Upload only metadata (no binary) to App Store Connect"
   lane :submit_metadata do
-    api_key = app_store_connect_api_key(path: "fastlane/api_key.json")
+    api_key = app_store_connect_api_key(key_filepath: "fastlane/api_key.json")
     deliver(
       api_key: api_key,
       submit_for_review: false,
@@ -39,14 +99,87 @@ platform :ios do
   end
 
   desc "Upload metadata and binary to App Store Connect (not auto-submit)"
-  lane :appstore do
-    api_key = app_store_connect_api_key(path: "fastlane/api_key.json")
+  lane :upload_to_appstore do
+    api_key = app_store_connect_api_key(key_filepath: "fastlane/api_key.json")
     build_ios
     deliver(
       api_key: api_key,
       submit_for_review: false,
       skip_screenshots: true,
       force: true
+    )
+  end
+
+  desc "Upload metadata only"
+  lane :upload_metadata do
+    api_key = app_store_connect_api_key(
+      key_id: "RLGD2FDJTY",
+      issuer_id: "69a6de95-fc85-47e3-e053-5b8c7c11a4d1",
+      key_content: "-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgcxI0C1t0/8XWs+NM\nevn/fBHR7CiZ6bGuPQFU0k2Os2SgCgYIKoZIzj0DAQehRANCAATo1JMBFRZZY80O\nU3VkIUsoOHrvJEmMC78W1p9z5UANblpatZ39zQSmfTIo7xZUANS7Bg8enSE51a3P\n2alImKEb\n-----END PRIVATE KEY-----\n"
+    )
+    
+    # Upload metadata and screenshots only (skip review information)
+    deliver(
+      api_key: api_key,
+      submit_for_review: false,
+      skip_screenshots: false,
+      skip_binary_upload: true,
+      skip_metadata: false,
+      force: true,
+      run_precheck_before_submit: false,
+      metadata_path: "./fastlane/metadata",
+      screenshots_path: "./fastlane/screenshots",
+      skip_app_version_update: true
+    )
+  end
+
+  desc "Submit app for App Store review"
+  lane :submit_for_review do
+    api_key = app_store_connect_api_key(
+      key_id: "RLGD2FDJTY",
+      issuer_id: "69a6de95-fc85-47e3-e053-5b8c7c11a4d1",
+      key_content: "-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgcxI0C1t0/8XWs+NM\nevn/fBHR7CiZ6bGuPQFU0k2Os2SgCgYIKoZIzj0DAQehRANCAATo1JMBFRZZY80O\nU3VkIUsoOHrvJEmMC78W1p9z5UANblpatZ39zQSmfTIo7xZUANS7Bg8enSE51a3P\n2alImKEb\n-----END PRIVATE KEY-----\n"
+    )
+    
+    # Submit the existing build for App Store review with complete metadata
+    deliver(
+      api_key: api_key,
+      submit_for_review: true,
+      skip_screenshots: false,
+      skip_binary_upload: true,
+      skip_metadata: false,
+      force: true,
+      run_precheck_before_submit: false,
+      metadata_path: "./fastlane/metadata",
+      screenshots_path: "./fastlane/screenshots",
+      automatic_release: true,
+      ignore_language_directory_validation: true,
+      submission_information: {
+        export_compliance_uses_encryption: false,
+        export_compliance_encryption_updated: false
+      }
+    )
+  end
+
+  desc "Distribute app - upload metadata and submit for App Store review"
+  lane :distribute do
+    api_key = app_store_connect_api_key(
+      key_id: "RLGD2FDJTY",
+      issuer_id: "69a6de95-fc85-47e3-e053-5b8c7c11a4d1",
+      key_content: "-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgcxI0C1t0/8XWs+NM\nevn/fBHR7CiZ6bGuPQFU0k2Os2SgCgYIKoZIzj0DAQehRANCAATo1JMBFRZZY80O\nU3VkIUsoOHrvJEmMC78W1p9z5UANblpatZ39zQSmfTIo7xZUANS7Bg8enSE51a3P\n2alImKEb\n-----END PRIVATE KEY-----\n"
+    )
+    
+    # Upload metadata to App Store Connect and submit for review
+    deliver(
+      api_key: api_key,
+      submit_for_review: true,
+      skip_screenshots: true,
+      skip_binary_upload: true,
+      force: true,
+      metadata_path: "./fastlane/metadata",
+      skip_metadata: false,
+      automatic_release: false,
+      skip_app_version_update: true
     )
   end
 end

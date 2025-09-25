@@ -21,12 +21,6 @@ struct ContentView: View {
                     Image(systemName: "wrench.and.screwdriver.fill")
                     Text("Diagnostics")
                 }
-            
-            SettingsView()
-                .tabItem {
-                    Image(systemName: "gear")
-                    Text("Settings")
-                }
         }
         .accentColor(.blue)
     }

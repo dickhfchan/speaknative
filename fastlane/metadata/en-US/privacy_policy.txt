@@ -1,0 +1,30 @@
+# Privacy Policy for SpeakNativeAmerican
+
+## Data Collection and Usage
+
+**Audio Recordings:**
+- SpeakNativeAmerican records your voice for pronunciation analysis
+- Audio recordings are processed locally on your device
+- Audio data is sent to Azure OpenAI for pronunciation analysis
+- Audio data is not stored permanently on our servers
+- Audio data is not shared with third parties except for analysis purposes
+
+**Data Storage:**
+- Audio recordings are temporarily stored on your device
+- Analysis results are stored locally on your device
+- No personal data is collected or stored on our servers
+
+**Third-Party Services:**
+- We use Azure OpenAI for pronunciation analysis
+- Audio data is sent securely to Azure OpenAI for processing
+- Azure OpenAI's privacy policy applies to data processing
+
+**Your Rights:**
+- You can delete audio recordings from your device at any time
+- You can stop using the app at any time
+- No personal information is collected or stored
+
+**Contact:**
+For privacy questions, contact: dickhfchan@gmail.com
+
+Last updated: September 2024

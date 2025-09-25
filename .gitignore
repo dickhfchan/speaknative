@@ -160,3 +160,21 @@ tmp/
 # Test results
 test-results/
 coverage/
+
+# iOS Development
+*.mobileprovision
+*.p12
+*.cer
+*.certSigningRequest
+*.xcarchive/
+*.app.dSYM.zip
+
+# Fastlane additional
+fastlane/ExportOptions.plist
+fastlane/metadata/review_information/
+
+# Asset files (if not needed in repo)
+asset/
+
+# Certificates and provisioning profiles
+certs/
